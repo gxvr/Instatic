@@ -13,9 +13,10 @@ import { CodeIcon } from 'pixel-art-icons/icons/code'
 import { ExternalLinkSolidIcon } from 'pixel-art-icons/icons/external-link-solid'
 import { GlobeSolidIcon } from 'pixel-art-icons/icons/globe-solid'
 import { CopySolidIcon } from 'pixel-art-icons/icons/copy-solid'
+import { Settings2SolidIcon } from 'pixel-art-icons/icons/settings-2-solid'
 import { SiteCreateDialog, buildScriptPath, buildStylePath, slugifySiteItemName, type SiteCreatePayload, type SiteCreateKind } from '@admin/shared/dialogs/SiteCreateDialog'
 import type { ExplorerContextMenuItem } from '@site/explorer-actions'
-import { useTemplateSettingsDialog } from './useTemplateSettingsDialog'
+import { usePageSettingsDialogs } from './usePageSettingsDialogs'
 import { useVCDeletionConfirm } from '@admin/shared/dialogs/VCDeletionConfirmDialog'
 import { useConfirmDelete } from '@admin/shared/dialogs/ConfirmDeleteDialog'
 import {
@@ -153,7 +154,7 @@ export function SiteExplorerPanel({
   }
 
   const pages = site?.pages ?? []
-  const { openTemplateSettings, dialog: templateSettingsDialog } = useTemplateSettingsDialog({
+  const { openTemplateSettings, openPageSettings, dialogs: pageSettingsDialogs } = usePageSettingsDialogs({
     pages,
     renamePage,
     convertPageToTemplate,
@@ -395,16 +396,6 @@ export function SiteExplorerPanel({
     }]
   }
 
-  function handleDuplicatePage(page: Page) {
-    // Deep-clones nodes with fresh ids + remapped scoped classes — the same
-    // engine Spotlight's "Duplicate current page" command already uses. The
-    // Data tab's generic row-duplicate can't do this (a page's content lives
-    // in its tree, not in editable cells), so this is the one place page
-    // duplication actually works.
-    const newPage = duplicatePage(page.id, `${page.title} (copy)`)
-    openPageInCanvas(newPage.id)
-  }
-
   function pageMenuItems(target: SiteExplorerContextTarget) {
     const page = pageForTarget(target)
     if (!page) return []
@@ -429,11 +420,25 @@ export function SiteExplorerPanel({
       {
         label: 'Duplicate page',
         icon: <CopySolidIcon size={13} />,
+        // Deep-clones nodes with fresh ids + remapped scoped classes — the
+        // same engine Spotlight's "Duplicate current page" command already
+        // uses. The Data tab's generic row-duplicate can't do this (a page's
+        // content lives in its tree, not in editable cells).
         action: () => {
-          handleDuplicatePage(page)
+          openPageInCanvas(duplicatePage(page.id, `${page.title} (copy)`).id)
           setContextMenu(null)
         },
       },
+      // Templates get title+slug through "Template settings" already — avoid
+      // a second, redundant slug editor for the same page.
+      ...(!page.template ? [{
+        label: 'Page settings',
+        icon: <Settings2SolidIcon size={13} />,
+        action: () => {
+          openPageSettings(page)
+          setContextMenu(null)
+        },
+      }] : []),
       ...templateMenuItems(target),
     ]
   }
@@ -669,7 +674,7 @@ export function SiteExplorerPanel({
             onDelete={() => handleDeleteContext(contextMenu)}
           />
         )}
-        {templateSettingsDialog}
+        {pageSettingsDialogs}
         {pathConfirmPlan && (
           <SiteExplorerPathConfirmDialog
             plan={pathConfirmPlan}
