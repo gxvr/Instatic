@@ -1004,6 +1004,32 @@ describe('SiteExplorerPanel', () => {
     expect(screen.getByRole('textbox', { name: 'Rename Pricing' })).toBeDefined()
   })
 
+  it('duplicates a page from the site row context menu, deep-cloning its tree', () => {
+    loadSite()
+    render(<SiteExplorerPanel sectionGroup="site" />)
+
+    const beforeCount = useEditorStore.getState().site?.pages.length ?? 0
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /open page pricing/i }), {
+      clientX: 120,
+      clientY: 140,
+    })
+    fireEvent.click(screen.getByRole('menuitem', { name: /duplicate page/i }))
+
+    const pages = useEditorStore.getState().site?.pages ?? []
+    expect(pages.length).toBe(beforeCount + 1)
+
+    const copy = pages.find((page) => page.title === 'Pricing (copy)')
+    expect(copy).toBeDefined()
+    expect(copy?.slug).not.toBe('pricing')
+    expect(copy?.id).not.toBe('page-pricing')
+
+    // A real tree clone, not a shared reference — new node ids, same shape.
+    const source = pages.find((page) => page.id === 'page-pricing')!
+    expect(Object.keys(copy!.nodes)).toHaveLength(Object.keys(source.nodes).length)
+    expect(copy!.rootNodeId).not.toBe(source.rootNodeId)
+  })
+
   it('renames and deletes components from the site row context menu', () => {
     loadSite()
     render(<SiteExplorerPanel sectionGroup="site" />)

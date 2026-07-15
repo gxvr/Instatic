@@ -12,9 +12,10 @@ import { PaintBucketSolidIcon } from 'pixel-art-icons/icons/paint-bucket-solid'
 import { CodeIcon } from 'pixel-art-icons/icons/code'
 import { ExternalLinkSolidIcon } from 'pixel-art-icons/icons/external-link-solid'
 import { GlobeSolidIcon } from 'pixel-art-icons/icons/globe-solid'
+import { CopySolidIcon } from 'pixel-art-icons/icons/copy-solid'
 import { SiteCreateDialog, buildScriptPath, buildStylePath, slugifySiteItemName, type SiteCreatePayload, type SiteCreateKind } from '@admin/shared/dialogs/SiteCreateDialog'
 import type { ExplorerContextMenuItem } from '@site/explorer-actions'
-import { TemplateSettingsDialog, type TemplateSettingsPayload } from '@admin/shared/dialogs/TemplateSettingsDialog'
+import { useTemplateSettingsDialog } from './useTemplateSettingsDialog'
 import { useVCDeletionConfirm } from '@admin/shared/dialogs/VCDeletionConfirmDialog'
 import { useConfirmDelete } from '@admin/shared/dialogs/ConfirmDeleteDialog'
 import {
@@ -98,6 +99,7 @@ export function SiteExplorerPanel({
   const setActiveDocument = useEditorStore((s) => s.setActiveDocument)
   const addPage = useEditorStore((s) => s.addPage)
   const renamePage = useEditorStore((s) => s.renamePage)
+  const duplicatePage = useEditorStore((s) => s.duplicatePage)
   const deletePage = useEditorStore((s) => s.deletePage)
   const convertPageToTemplate = useEditorStore((s) => s.convertPageToTemplate)
   const convertTemplateToPage = useEditorStore((s) => s.convertTemplateToPage)
@@ -121,7 +123,6 @@ export function SiteExplorerPanel({
   const [createKind, setCreateKind] = useState<SiteCreateKind | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [inlineRenameTarget, setInlineRenameTarget] = useState<SiteExplorerContextTarget | null>(null)
-  const [templateSettingsTarget, setTemplateSettingsTarget] = useState<Page | null>(null)
   const [pathConfirmPlan, setPathConfirmPlan] = useState<ExplorerPathChangePlan | null>(null)
   const explorerSelection = useSiteExplorerSelection<SiteExplorerContextTarget>()
 
@@ -152,6 +153,12 @@ export function SiteExplorerPanel({
   }
 
   const pages = site?.pages ?? []
+  const { openTemplateSettings, dialog: templateSettingsDialog } = useTemplateSettingsDialog({
+    pages,
+    renamePage,
+    convertPageToTemplate,
+    openPageInCanvas,
+  })
   const normalPages = pages.filter((page) => !page.template)
   const templatePages = pages.filter((page) => page.template)
   const components = site?.visualComponents ?? []
@@ -350,15 +357,7 @@ export function SiteExplorerPanel({
     const slug = createUniquePageSlug('Post Template', pages)
     const page = addPage('Post Template', slug)
     openPageInCanvas(page.id)
-    setTemplateSettingsTarget(page)
-  }
-
-  function handleSaveTemplateSettings(payload: TemplateSettingsPayload) {
-    if (!templateSettingsTarget) return
-    renamePage(templateSettingsTarget.id, payload.title, payload.slug)
-    convertPageToTemplate(templateSettingsTarget.id, payload.template)
-    setTemplateSettingsTarget(null)
-    openPageInCanvas(templateSettingsTarget.id)
+    openTemplateSettings(page)
   }
 
   function templateMenuItems(target: SiteExplorerContextTarget) {
@@ -371,7 +370,7 @@ export function SiteExplorerPanel({
           label: 'Template settings',
           icon: <FileTextSolidIcon size={13} />,
           action: () => {
-            setTemplateSettingsTarget(page)
+            openTemplateSettings(page)
             setContextMenu(null)
           },
         },
@@ -390,10 +389,20 @@ export function SiteExplorerPanel({
       label: 'Use as template',
       icon: <FileTextSolidIcon size={13} />,
       action: () => {
-        setTemplateSettingsTarget(page)
+        openTemplateSettings(page)
         setContextMenu(null)
       },
     }]
+  }
+
+  function handleDuplicatePage(page: Page) {
+    // Deep-clones nodes with fresh ids + remapped scoped classes — the same
+    // engine Spotlight's "Duplicate current page" command already uses. The
+    // Data tab's generic row-duplicate can't do this (a page's content lives
+    // in its tree, not in editable cells), so this is the one place page
+    // duplication actually works.
+    const newPage = duplicatePage(page.id, `${page.title} (copy)`)
+    openPageInCanvas(newPage.id)
   }
 
   function pageMenuItems(target: SiteExplorerContextTarget) {
@@ -414,6 +423,14 @@ export function SiteExplorerPanel({
         icon: <ExternalLinkSolidIcon size={13} />,
         action: () => {
           window.open(pagePublicPath(page.slug), '_blank', 'noopener,noreferrer')
+          setContextMenu(null)
+        },
+      },
+      {
+        label: 'Duplicate page',
+        icon: <CopySolidIcon size={13} />,
+        action: () => {
+          handleDuplicatePage(page)
           setContextMenu(null)
         },
       },
@@ -652,14 +669,7 @@ export function SiteExplorerPanel({
             onDelete={() => handleDeleteContext(contextMenu)}
           />
         )}
-        {templateSettingsTarget && (
-          <TemplateSettingsDialog
-            page={templateSettingsTarget}
-            pages={pages}
-            onCancel={() => setTemplateSettingsTarget(null)}
-            onSave={handleSaveTemplateSettings}
-          />
-        )}
+        {templateSettingsDialog}
         {pathConfirmPlan && (
           <SiteExplorerPathConfirmDialog
             plan={pathConfirmPlan}
