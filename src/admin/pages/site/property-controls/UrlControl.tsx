@@ -33,24 +33,54 @@ export function UrlControl({
 
   const current = String(value ?? '')
   const ref = parsePageRef(current)
+
+  // The text field shows a local `draft`, not `current`, and updates it on
+  // every keystroke unconditionally — only a VALID draft is ever committed
+  // via onChange. Without this split, a controlled input bound straight to
+  // `current` reverts on every intermediate invalid state (e.g. "https:/"
+  // while typing, or "https://exampl" while deleting), which made the field
+  // effectively impossible to type or backspace into: onChange never fires,
+  // `current` never changes, so React snaps the input back to the last
+  // committed value after every keystroke.
+  //
+  // `lastExternal` tracks the value WE last committed, so a `current` that
+  // differs from it must have come from outside this component (switching
+  // the selected node re-uses this same instance — see
+  // PropertyControlRenderer's `key={propKey}` — as does undo/redo, or
+  // another control writing the same prop) and resyncs the draft to match.
+  // Plain state (not a ref) so the comparison below can run during render —
+  // the same render-time-reset idiom `useDataRowDraft` uses for `trackedRowId`.
+  const [lastExternal, setLastExternal] = useState(current)
   const [mode, setMode] = useState<'url' | 'page'>(isPageRef(current) ? 'page' : 'url')
+  const [draft, setDraft] = useState(() => (isPageRef(current) ? '' : current))
+
+  if (current !== lastExternal) {
+    setLastExternal(current)
+    setMode(isPageRef(current) ? 'page' : 'url')
+    setDraft(isPageRef(current) ? '' : current)
+    setError(false)
+  }
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
+    setDraft(v)
     const valid = isValidUrl(v)
     setError(!valid)
-    if (valid) onChange(propKey, v)
+    if (valid) {
+      setLastExternal(v)
+      onChange(propKey, v)
+    }
   }
 
   const handlePagePick = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const pageId = e.target.value
     if (!pageId) return
     // Preserve an existing fragment when re-pointing the link to another page.
-    onChange(propKey, makePageRef(pageId, ref?.fragment))
+    const next = makePageRef(pageId, ref?.fragment)
+    setLastExternal(next)
+    onChange(propKey, next)
   }
 
-  // In URL mode never show a page-ref token in the text field — it isn't a URL.
-  const urlFieldValue = isPageRef(current) ? '' : current
   const selectedPageId = ref?.pageId ?? ''
 
   const pageOptions = [
@@ -101,7 +131,7 @@ export function UrlControl({
           <Input
             id={`ctrl-${propKey}`}
             type="url"
-            value={urlFieldValue}
+            value={draft}
             placeholder="https://…"
             disabled={disabled}
             fieldSize="sm"
