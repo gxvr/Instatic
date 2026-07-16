@@ -17,7 +17,10 @@ import { useEditorStore } from '@site/store/store'
 import { WarningDiamondSolidIcon } from 'pixel-art-icons/icons/warning-diamond-solid'
 import { BracesIcon } from 'pixel-art-icons/icons/braces'
 import { ExternalLinkSolidIcon } from 'pixel-art-icons/icons/external-link-solid'
+import { PlugSolidIcon } from 'pixel-art-icons/icons/plug-solid'
 import { Button } from '@ui/components/Button'
+import { pushToast } from '@ui/components/Toast'
+import { getErrorMessage } from '@core/utils/errorMessage'
 import { ParamRow } from './ParamRow'
 import styles from './ComponentRefView.module.css'
 
@@ -33,6 +36,7 @@ interface ComponentRefViewProps {
 export function ComponentRefView({ nodeId, componentId, propOverrides }: ComponentRefViewProps) {
   const setActiveDocument = useEditorStore((s) => s.setActiveDocument)
   const updateNodeProps = useEditorStore((s) => s.updateNodeProps)
+  const detachVisualComponentRef = useEditorStore((s) => s.detachVisualComponentRef)
 
   const vc = useEditorStore(
     (s) => s.site?.visualComponents?.find((v) => v.id === componentId) ?? null,
@@ -41,6 +45,15 @@ export function ComponentRefView({ nodeId, componentId, propOverrides }: Compone
   function handleOpenInCanvas() {
     if (componentId) {
       setActiveDocument({ kind: 'visualComponent', vcId: componentId })
+    }
+  }
+
+  function handleDetach() {
+    try {
+      detachVisualComponentRef(nodeId)
+    } catch (err) {
+      console.error('[ComponentRefView] Detach failed:', err)
+      pushToast({ kind: 'error', title: 'Could not detach component', body: getErrorMessage(err, 'Unknown error') })
     }
   }
 
@@ -80,6 +93,15 @@ export function ComponentRefView({ nodeId, componentId, propOverrides }: Compone
         >
           <ExternalLinkSolidIcon size={10} color="currentColor" aria-hidden="true" />
           Open in canvas
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={handleDetach}
+          tooltip="Replace this instance with a plain, editable copy of its content — the component itself is unaffected"
+        >
+          <PlugSolidIcon size={10} color="currentColor" aria-hidden="true" />
+          Detach
         </Button>
       </div>
 

@@ -47,13 +47,16 @@ import { registry } from '@core/module-engine'
 import { useInsertModule } from '@site/hooks/useInsertModule'
 import { resolveInsertLocation } from '@site/store/insertLocation'
 import { ModulePicker } from '@site/module-picker'
-import { canComponentizeNode } from '@site/componentization'
+import { canComponentizeNode, canDetachComponentRef } from '@site/componentization'
+import { pushToast } from '@ui/components/Toast'
+import { getErrorMessage } from '@core/utils/errorMessage'
 import { useConfirmDelete } from '@admin/shared/dialogs/ConfirmDeleteDialog'
 import type { AnyModuleDefinition } from '@core/module-engine'
 import { PenSquareSolidIcon } from 'pixel-art-icons/icons/pen-square-solid'
 import { CopyPlusSolidIcon } from 'pixel-art-icons/icons/copy-plus-solid'
 import { CopySolidIcon } from 'pixel-art-icons/icons/copy-solid'
 import { CopyXSolidIcon } from 'pixel-art-icons/icons/copy-x-solid'
+import { PlugSolidIcon } from 'pixel-art-icons/icons/plug-solid'
 import { FilesStack2SolidIcon } from 'pixel-art-icons/icons/files-stack-2-solid'
 import { CheckboxSolidIcon } from 'pixel-art-icons/icons/checkbox-solid'
 import { ContainerSolidIcon } from 'pixel-art-icons/icons/container-solid'
@@ -120,6 +123,7 @@ export function LayerNodeContextMenu({
   const selectedNodeIds = useEditorStore(useShallow((s) => s.selectedNodeIds))
   const insertComponentRef = useEditorStore((s) => s.insertComponentRef)
   const openComponentizeEditor = useEditorStore((s) => s.openComponentizeEditor)
+  const detachVisualComponentRef = useEditorStore((s) => s.detachVisualComponentRef)
   const insertModule = useInsertModule()
   const wrapNodesAction = useEditorStore((s) => s.wrapNodes)
   const duplicateNodesAction = useEditorStore((s) => s.duplicateNodes)
@@ -184,6 +188,13 @@ export function LayerNodeContextMenu({
     const tree = selectActiveCanvasPage(s)
     const node = tree?.nodes[nodeId]
     return canComponentizeNode(s.activeDocument, node)
+  })
+
+  const canDetach = useEditorStore((s) => {
+    if (isMulti || !nodeId) return false
+    const tree = selectActiveCanvasPage(s)
+    const node = tree?.nodes[nodeId]
+    return canDetachComponentRef(s.activeDocument, node)
   })
 
   // "Save as layout" mirrors Componentize's mode gate (page mode, single
@@ -309,6 +320,17 @@ export function LayerNodeContextMenu({
     onClose()
   }
 
+  const dispatchDetach = () => {
+    if (!nodeId) return
+    try {
+      detachVisualComponentRef(nodeId)
+    } catch (err) {
+      console.error('[LayerNodeContextMenu] Detach component failed:', err)
+      pushToast({ kind: 'error', title: 'Could not detach component', body: getErrorMessage(err, 'Unknown error') })
+    }
+    onClose()
+  }
+
   const dispatchWrapInLoop = () => {
     if (isMulti) {
       wrapNodesAction(targetIds, 'base.loop')
@@ -373,6 +395,13 @@ export function LayerNodeContextMenu({
             <ContextMenuItem onClick={dispatchComponentize}>
               <span aria-hidden="true"><BoxSolidIcon size={13} /></span>
               Componentize
+            </ContextMenuItem>
+          )}
+
+          {canDetach && (
+            <ContextMenuItem onClick={dispatchDetach}>
+              <span aria-hidden="true"><PlugSolidIcon size={13} /></span>
+              Detach component
             </ContextMenuItem>
           )}
 

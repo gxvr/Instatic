@@ -18,13 +18,8 @@
 import { nanoid } from 'nanoid'
 import type { EditorStoreSliceCreator } from '@site/store/types'
 import type { VisualComponent, VCParam, VCNode } from '@core/visualComponents'
-import type { BaseNode, PageNode } from '@core/page-tree'
-import { reindexNodeParents } from '@core/page-tree'
-import {
-  validateComponentName,
-  validateParamName,
-  wouldCreateCycle,
-} from '@core/visualComponents'
+import { reindexNodeParents, type BaseNode, type PageNode } from '@core/page-tree'
+import { validateComponentName, validateParamName, wouldCreateCycle } from '@core/visualComponents'
 import { buildSiteHelpers } from './site/helpers'
 import { syncAllVCRefSlotInstances, allTreeNodeMaps } from './vcSlotReconcile'
 import {
@@ -35,6 +30,7 @@ import {
   clonePageSubtreeToFlatNodes,
   collectSubtreeNodeIds,
   collectVCRefsFromPageSubtree,
+  runDetachVisualComponentRef,
 } from './vcTreeOps'
 
 interface VisualComponentsSlice {
@@ -152,6 +148,8 @@ interface VisualComponentsSlice {
    *   - nodeId is the page root
    */
   convertNodeToComponent(nodeId: string, name: string): string
+  /** Inverse of `convertNodeToComponent`. See `runDetachVisualComponentRef` (`vcTreeOps.ts`). */
+  detachVisualComponentRef(nodeId: string): void
 }
 
 // ---------------------------------------------------------------------------
@@ -711,5 +709,7 @@ export const createVisualComponentsSlice: EditorStoreSliceCreator<VisualComponen
 
     return newVcId
   },
+
+  detachVisualComponentRef: (nodeId) => runDetachVisualComponentRef(nodeId, get(), mutateSiteState),
   }
 }

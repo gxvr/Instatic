@@ -1,1 +1,1 @@
-export { canComponentizeNode } from './componentizeEligibility'
+export { canComponentizeNode, canDetachComponentRef } from './componentizeEligibility'
